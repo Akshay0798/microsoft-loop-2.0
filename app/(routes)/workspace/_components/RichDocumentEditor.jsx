@@ -14,11 +14,9 @@ import { TextVariantTune } from "@editorjs/text-variant-tune";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { useUser } from "@clerk/nextjs";
-
 // import GenerateAITemplate from './GenerateAITemplate';
 
 function RichDocumentEditor({ params }) {
-  
   const editorRef = useRef(null);
   const isFetchedRef = useRef(false);
   const { user } = useUser();
@@ -31,35 +29,59 @@ function RichDocumentEditor({ params }) {
     }
   }, [user]);
 
- 
   const saveDocument = async () => {
     try {
       const outputData = await editorRef.current.save();
       const docRef = doc(db, "documentOutput", params?.documentid);
 
+      const emailAddress = user?.primaryEmailAddress?.emailAddress;
+
+      // Check if emailAddress is defined
+      if (!emailAddress) {
+        throw new Error("User email address is undefined.");
+      }
+
       await updateDoc(docRef, {
-        output: JSON.stringify(outputData),
-        editedBy: user?.primaryEmailAddress?.emailAddress,
+        output: outputData, // Saving as an object without JSON conversion
+        editedBy: emailAddress, // Only set if defined
       });
+
       console.log("Document saved successfully:", outputData);
     } catch (error) {
       console.error("Error saving document:", error);
     }
   };
 
-
   const getDocumentOutput = () => {
-    const unsubscribe = onSnapshot(doc(db, "documentOutput", params?.documentid), (doc) => {
-      if (doc.data()?.editedBy !== user?.primaryEmailAddress?.emailAddress || !isFetchedRef.current) {
-        const output = doc.data()?.output;
-        const parsedOutput = typeof output === "string" ? JSON.parse(output) : output;
-        
-        if (editorRef.current && parsedOutput) {
-          editorRef.current.render(parsedOutput);
+    const unsubscribe = onSnapshot(
+      doc(db, "documentOutput", params?.documentid),
+      (doc) => {
+        const data = doc.data();
+        if (data) {
+          if (
+            data.editedBy !== user?.primaryEmailAddress?.emailAddress ||
+            !isFetchedRef.current
+          ) {
+            const output = data.output;
+            const parsedOutput =
+              typeof output === "string" ? JSON.parse(output) : output;
+
+            // Log the parsed output to debug
+            console.log("Parsed Output:", parsedOutput);
+
+            // Ensure parsedOutput is valid
+            if (editorRef.current && parsedOutput && parsedOutput.blocks) {
+              editorRef.current.render(parsedOutput);
+            } else {
+              console.error("Parsed output is invalid:", parsedOutput);
+            }
+            isFetchedRef.current = true;
+          }
+        } else {
+          console.warn("Document does not exist or is undefined");
         }
-        isFetchedRef.current = true;
       }
-    });
+    );
 
     return () => unsubscribe();
   };
@@ -80,7 +102,14 @@ function RichDocumentEditor({ params }) {
             class: Alert,
             inlineToolbar: true,
             config: {
-              alertTypes: ["primary", "secondary", "info", "success", "warning", "danger"],
+              alertTypes: [
+                "primary",
+                "secondary",
+                "info",
+                "success",
+                "warning",
+                "danger",
+              ],
               defaultType: "primary",
               messagePlaceholder: "Enter something",
             },
@@ -114,6 +143,5 @@ function RichDocumentEditor({ params }) {
     </div>
   );
 }
-
 
 export default RichDocumentEditor;
