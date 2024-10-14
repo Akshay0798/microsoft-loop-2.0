@@ -4,80 +4,74 @@ import Header from "@editorjs/header";
 import Delimiter from "@editorjs/delimiter";
 import Alert from "editorjs-alert";
 import List from "@editorjs/list";
-import NestedList from "@editorjs/nested-list";
 import Checklist from "@editorjs/checklist";
 import Embed from "@editorjs/embed";
 import SimpleImage from "simple-image-editorjs";
 import Table from "@editorjs/table";
+import Paragraph from "@editorjs/paragraph";
 import CodeTool from "@editorjs/code";
 import { TextVariantTune } from "@editorjs/text-variant-tune";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { useUser } from "@clerk/nextjs";
-import Paragraph from "@editorjs/paragraph";
+
 // import GenerateAITemplate from './GenerateAITemplate';
 
 function RichDocumentEditor({ params }) {
-  const ref = useRef();
-  let editor;
+  
+  const editorRef = useRef(null);
+  const isFetchedRef = useRef(false);
   const { user } = useUser();
+
   const [documentOutput, setDocumentOutput] = useState([]);
 
-  // const [isFetched,setIsFetched]=useState(false);
-  let isFetched = false;
   useEffect(() => {
-    user && InitEditor();
+    if (user) {
+      initEditor();
+    }
   }, [user]);
 
-  /**
-   * Used to save Document
-   */
-  const SaveDocument = () => {
-    console.log("UPDATE");
-    ref.current.save().then(async (outputData) => {
+ 
+  const saveDocument = async () => {
+    try {
+      const outputData = await editorRef.current.save();
       const docRef = doc(db, "documentOutput", params?.documentid);
 
       await updateDoc(docRef, {
         output: JSON.stringify(outputData),
         editedBy: user?.primaryEmailAddress?.emailAddress,
       });
-    });
+      console.log("Document saved successfully:", outputData);
+    } catch (error) {
+      console.error("Error saving document:", error);
+    }
   };
 
-  const GetDocumentOutput = () => {
-    const unsubscribe = onSnapshot(
-      doc(db, "documentOutput", params?.documentid),
-      (doc) => {
-        if (
-          doc.data()?.editedBy != user?.primaryEmailAddress?.emailAddress ||
-          isFetched == false
-        ) {
-          const output = doc.data()?.output;
 
-          //! Check if output is a string, only then parse it
-          const parsedOutput = typeof output === "string" ? JSON.parse(output) : output;
-            doc.data().editedBy && editor?.render(parsedOutput);
+  const getDocumentOutput = () => {
+    const unsubscribe = onSnapshot(doc(db, "documentOutput", params?.documentid), (doc) => {
+      if (doc.data()?.editedBy !== user?.primaryEmailAddress?.emailAddress || !isFetchedRef.current) {
+        const output = doc.data()?.output;
+        const parsedOutput = typeof output === "string" ? JSON.parse(output) : output;
+        
+        if (editorRef.current && parsedOutput) {
+          editorRef.current.render(parsedOutput);
         }
-        //   doc.data().editedBy && editor?.render(JSON.parse(doc.data()?.output));
-        isFetched = true;
+        isFetchedRef.current = true;
       }
-    );
+    });
+
+    return () => unsubscribe();
   };
 
-  const InitEditor = () => {
-    if (!editor?.current) {
-      editor = new EditorJS({
-        onChange: (api, event) => {
-          SaveDocument();
-          //ref.current.save().then(async (outputData) => {console.log(outputData)})
-        },
-        onReady: () => {
-          GetDocumentOutput();
-        },
-        /**
-         * Id of Element that should contain Editor instance
-         */
+  const initEditor = () => {
+    if (!editorRef.current) {
+      const editor = new EditorJS({
         holder: "editorjs",
+        onChange: () => saveDocument(),
+        onReady: () => {
+          getDocumentOutput();
+        },
         tools: {
           header: Header,
           delimiter: Delimiter,
@@ -85,18 +79,8 @@ function RichDocumentEditor({ params }) {
           alert: {
             class: Alert,
             inlineToolbar: true,
-            shortcut: "CMD+SHIFT+A",
             config: {
-              alertTypes: [
-                "primary",
-                "secondary",
-                "info",
-                "success",
-                "warning",
-                "danger",
-                "light",
-                "dark",
-              ],
+              alertTypes: ["primary", "secondary", "info", "success", "warning", "danger"],
               defaultType: "primary",
               messagePlaceholder: "Enter something",
             },
@@ -105,31 +89,31 @@ function RichDocumentEditor({ params }) {
           list: {
             class: List,
             inlineToolbar: true,
-            shortcut: "CMD+SHIFT+L",
             config: {
               defaultStyle: "unordered",
             },
           },
           checklist: {
             class: Checklist,
-            shortcut: "CMD+SHIFT+C",
             inlineToolbar: true,
           },
           image: SimpleImage,
           code: {
             class: CodeTool,
-            shortcut: "CMD+SHIFT+P",
           },
         },
       });
-      ref.current = editor;
+
+      editorRef.current = editor;
     }
   };
+
   return (
     <div className="lg:-ml-40">
       <div id="editorjs"></div>
     </div>
   );
 }
+
 
 export default RichDocumentEditor;
