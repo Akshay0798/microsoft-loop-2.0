@@ -16,84 +16,183 @@ import { db } from "@/config/firebaseConfig";
 import { useUser } from "@clerk/nextjs";
 // import GenerateAITemplate from './GenerateAITemplate';
 
-function RichDocumentEditor({ params }) {
-  const editorRef = useRef(null);
-  const isFetchedRef = useRef(false);
-  const { user } = useUser();
+// function RichDocumentEditor({ params }) {
+//   const editorRef = useRef(null);
+//   const isFetchedRef = useRef(false);
+//   const { user } = useUser();
 
+//   const [documentOutput, setDocumentOutput] = useState([]);
+
+//   useEffect(() => {
+//     if (user) {
+//       initEditor();
+//     }
+//   }, [user]);
+
+//   const saveDocument = async () => {
+//     try {
+//       const outputData = await editorRef.current.save();
+//       const docRef = doc(db, "documentOutput", params?.documentid);
+
+//       const emailAddress = user?.primaryEmailAddress?.emailAddress;
+
+//       // Check if emailAddress is defined
+//       if (!emailAddress) {
+//         throw new Error("User email address is undefined.");
+//       }
+
+//       await updateDoc(docRef, {
+//         output: outputData, // Saving as an object without JSON conversion
+//         editedBy: emailAddress, // Only set if defined
+//       });
+
+//       console.log("Document saved successfully:", outputData);
+//     } catch (error) {
+//       console.error("Error saving document:", error);
+//     }
+//   };
+
+//   const getDocumentOutput = () => {
+//     const unsubscribe = onSnapshot(
+//       doc(db, "documentOutput", params?.documentid),
+//       (doc) => {
+//         const data = doc.data();
+//         if (data) {
+//           if (
+//             data.editedBy !== user?.primaryEmailAddress?.emailAddress ||
+//             !isFetchedRef.current
+//           ) {
+//             const output = data.output;
+//             const parsedOutput =
+//               typeof output === "string" ? JSON.parse(output) : output;
+
+//             // Log the parsed output to debug
+//             console.log("Parsed Output:", parsedOutput);
+
+//             // Ensure parsedOutput is valid
+//             if (editorRef.current && parsedOutput && parsedOutput.blocks) {
+//               editorRef.current.render(parsedOutput);
+//             } else {
+//               console.error("Parsed output is invalid:", parsedOutput);
+//             }
+//             isFetchedRef.current = true;
+//           }
+//         } else {
+//           console.warn("Document does not exist or is undefined");
+//         }
+//       }
+//     );
+
+//     return () => unsubscribe();
+//   };
+
+//   const initEditor = () => {
+//     if (!editorRef.current) {
+//       const editor = new EditorJS({
+//         holder: "editorjs",
+//         onChange: () => saveDocument(),
+//         onReady: () => {
+//           getDocumentOutput();
+//         },
+//         tools: {
+//           header: Header,
+//           delimiter: Delimiter,
+//           paragraph: Paragraph,
+//           alert: {
+//             class: Alert,
+//             inlineToolbar: true,
+//             config: {
+//               alertTypes: [
+//                 "primary",
+//                 "secondary",
+//                 "info",
+//                 "success",
+//                 "warning",
+//                 "danger",
+//               ],
+//               defaultType: "primary",
+//               messagePlaceholder: "Enter something",
+//             },
+//           },
+//           table: Table,
+//           list: {
+//             class: List,
+//             inlineToolbar: true,
+//             config: {
+//               defaultStyle: "unordered",
+//             },
+//           },
+//           checklist: {
+//             class: Checklist,
+//             inlineToolbar: true,
+//           },
+//           image: SimpleImage,
+//           code: {
+//             class: CodeTool,
+//           },
+//         },
+//       });
+
+//       editorRef.current = editor;
+//     }
+//   };
+
+//   return (
+//     <div className="lg:-ml-40">
+//       <div id="editorjs"></div>
+//     </div>
+//   );
+// }
+
+function RichDocumentEditor({ params }) {
+  const ref = useRef();
+  let editor;
+  const { user } = useUser();
   const [documentOutput, setDocumentOutput] = useState([]);
+  let isFetched = false;
 
   useEffect(() => {
-    if (user) {
-      initEditor();
-    }
+    user && InitEditor();
   }, [user]);
 
-  const saveDocument = async () => {
-    try {
-      const outputData = await editorRef.current.save();
+  const SaveDocument = () => {
+    console.log("UPDATE");
+    ref.current.save().then(async (outputData) => {
       const docRef = doc(db, "documentOutput", params?.documentid);
 
-      const emailAddress = user?.primaryEmailAddress?.emailAddress;
-
-      // Check if emailAddress is defined
-      if (!emailAddress) {
-        throw new Error("User email address is undefined.");
-      }
-
       await updateDoc(docRef, {
-        output: outputData, // Saving as an object without JSON conversion
-        editedBy: emailAddress, // Only set if defined
+        // output: JSON.stringify(outputData),
+        output: outputData,
+        editedBy: user?.primaryEmailAddress?.emailAddress,
       });
-
-      console.log("Document saved successfully:", outputData);
-    } catch (error) {
-      console.error("Error saving document:", error);
-    }
+    });
   };
 
-  const getDocumentOutput = () => {
+  const GetDocumentOutput = () => {
     const unsubscribe = onSnapshot(
       doc(db, "documentOutput", params?.documentid),
       (doc) => {
-        const data = doc.data();
-        if (data) {
-          if (
-            data.editedBy !== user?.primaryEmailAddress?.emailAddress ||
-            !isFetchedRef.current
-          ) {
-            const output = data.output;
-            const parsedOutput =
-              typeof output === "string" ? JSON.parse(output) : output;
-
-            // Log the parsed output to debug
-            console.log("Parsed Output:", parsedOutput);
-
-            // Ensure parsedOutput is valid
-            if (editorRef.current && parsedOutput && parsedOutput.blocks) {
-              editorRef.current.render(parsedOutput);
-            } else {
-              console.error("Parsed output is invalid:", parsedOutput);
-            }
-            isFetchedRef.current = true;
-          }
-        } else {
-          console.warn("Document does not exist or is undefined");
-        }
+        if (
+          isFetched == false ||
+          doc.data()?.editedBy != user?.primaryEmailAddress?.emailAddress
+        )
+          doc.data().output && editor.render(doc.data()?.output);
+        isFetched = true;
       }
     );
-
-    return () => unsubscribe();
   };
 
-  const initEditor = () => {
-    if (!editorRef.current) {
-      const editor = new EditorJS({
-        holder: "editorjs",
-        onChange: () => saveDocument(),
-        onReady: () => {
-          getDocumentOutput();
+  const InitEditor = () => {
+    if (!editor?.current) {
+      editor = new EditorJS({
+        onChange: (api, event) => {
+          SaveDocument();
         },
+        onReady: () => {
+          GetDocumentOutput();
+        },
+
+        holder: "editorjs",
         tools: {
           header: Header,
           delimiter: Delimiter,
@@ -101,6 +200,7 @@ function RichDocumentEditor({ params }) {
           alert: {
             class: Alert,
             inlineToolbar: true,
+            shortcut: "CMD+SHIFT+A",
             config: {
               alertTypes: [
                 "primary",
@@ -109,6 +209,8 @@ function RichDocumentEditor({ params }) {
                 "success",
                 "warning",
                 "danger",
+                "light",
+                "dark",
               ],
               defaultType: "primary",
               messagePlaceholder: "Enter something",
@@ -118,28 +220,32 @@ function RichDocumentEditor({ params }) {
           list: {
             class: List,
             inlineToolbar: true,
+            shortcut: "CMD+SHIFT+L",
             config: {
               defaultStyle: "unordered",
             },
           },
           checklist: {
             class: Checklist,
+            shortcut: "CMD+SHIFT+C",
             inlineToolbar: true,
           },
           image: SimpleImage,
           code: {
             class: CodeTool,
+            shortcut: "CMD+SHIFT+P",
           },
         },
       });
-
-      editorRef.current = editor;
+      ref.current = editor;
     }
   };
-
   return (
-    <div className="lg:-ml-40">
-      <div id="editorjs"></div>
+    <div className=" ">
+      <div id="editorjs" className="w-[70%]"></div>
+      {/* <div className='fixed bottom-10 md:ml-80 left-0 z-10'>
+        <GenerateAITemplate setGenerateAIOutput={(output)=>editor?.render(output)} />
+      </div> */}
     </div>
   );
 }
