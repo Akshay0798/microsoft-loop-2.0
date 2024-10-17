@@ -1,3 +1,4 @@
+"use client"
 import Logo from "@/app/_components/Logo";
 import { Button } from "@/components/ui/button";
 import { db } from "@/config/firebaseConfig";
