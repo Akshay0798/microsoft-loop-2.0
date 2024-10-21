@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import Logo from "@/app/_components/Logo";
 import { Button } from "@/components/ui/button";
 import { db } from "@/config/firebaseConfig";
@@ -18,6 +18,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import NotificationBox from "./NotificationBox";
 
 function SideNav({ params }) {
   const [documentList, setDocumentList] = useState([]);
@@ -84,7 +85,10 @@ function SideNav({ params }) {
     <div className="h-screen md:w-72 hidden md:block fixed bg-blue-200 p-5 shadow-md">
       <div className="flex justify-between items-center">
         <Logo />
-        <Bell className="h-5 w-5 text-gray-500" />
+        
+        <NotificationBox>
+          <Bell className="h-5 w-5 text-gray-500" />
+        </NotificationBox>
       </div>
       <hr className="my-5" />
       <div>

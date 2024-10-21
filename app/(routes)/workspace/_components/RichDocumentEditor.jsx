@@ -41,7 +41,7 @@ function RichDocumentEditor({ params }) {
 
       // Update the document with the new content and editor's email
       await updateDoc(docRef, {
-        output: outputData, // Save as an object (not stringified)
+        output: JSON.stringify(outputData), 
         editedBy: emailAddress,
       });
 
@@ -53,32 +53,46 @@ function RichDocumentEditor({ params }) {
 
   // Function to fetch and render document output
   const getDocumentOutput = () => {
-    const unsubscribe = onSnapshot(doc(db, "documentOutput", params?.documentid), (docSnapshot) => {
-      const data = docSnapshot.data();
-      if (data) {
-        const { output, editedBy } = data;
-        // Check if the document has been edited by someone else or it's the first fetch
-        if (editedBy !== user?.primaryEmailAddress?.emailAddress || !isFetchedRef.current) {
-          const parsedOutput = typeof output === "string" ? JSON.parse(output) : output; // Ensure output is parsed properly
-
-          // Log the parsed output to check if it's valid
-          console.log("Parsed Output:", parsedOutput);
-
-          // Check if the output contains valid blocks for EditorJS to render
-          if (editorRef.current && parsedOutput?.blocks) {
-            editorRef.current.render(parsedOutput); // Render the document content
-          } else {
-            console.error("Parsed output is invalid or missing blocks:", parsedOutput);
+    const unsubscribe = onSnapshot(
+      doc(db, "documentOutput", params?.documentid),
+      (docSnapshot) => {
+        const data = docSnapshot.data();
+        if (data) {
+          const { output, editedBy } = data;
+          
+          if (
+            editedBy !== user?.primaryEmailAddress?.emailAddress ||
+            !isFetchedRef.current
+          ) {
+            try {
+              // JSON.parse the output if it's a string
+              const parsedOutput =
+                output && typeof output === "string" ? JSON.parse(output) : output;
+  
+              console.log("Parsed Output:", parsedOutput);
+  
+              if (editorRef.current && parsedOutput?.blocks) {
+                editorRef.current.render(parsedOutput); // Render the document content
+              } else {
+                console.error(
+                  "Parsed output is invalid or missing blocks:",
+                  parsedOutput
+                );
+              }
+              isFetchedRef.current = true; // Mark data as fetched
+            } catch (error) {
+              console.error("Error parsing output:", error);
+            }
           }
-          isFetchedRef.current = true; // Mark data as fetched
+        } else {
+          console.warn("Document does not exist or is undefined");
         }
-      } else {
-        console.warn("Document does not exist or is undefined");
       }
-    });
-
+    );
+  
     return () => unsubscribe(); // Clean up the subscription when unmounting
   };
+  
 
   // Initialize EditorJS and set up event listeners
   const initEditor = () => {
@@ -95,7 +109,14 @@ function RichDocumentEditor({ params }) {
             class: Alert,
             inlineToolbar: true,
             config: {
-              alertTypes: ["primary", "secondary", "info", "success", "warning", "danger"],
+              alertTypes: [
+                "primary",
+                "secondary",
+                "info",
+                "success",
+                "warning",
+                "danger",
+              ],
               defaultType: "primary",
               messagePlaceholder: "Enter something",
             },
@@ -122,8 +143,11 @@ function RichDocumentEditor({ params }) {
   };
 
   return (
-    <div className="lg:-ml-40">
-      <div id="editorjs" className="w-[70%]"></div>
+    <div className="">
+      <div
+        id="editorjs"
+        className="w-full lg:w-[70%] p-4 bg-white shadow-lg rounded-lg"
+      ></div>
     </div>
   );
 }
